@@ -32,11 +32,12 @@ You are an assistant for ANDES, a library for power system modeling and simulati
         message = model.invoke(messages)
         raw = message["raw"]
         parsed = message["parsed"]
+        messages.append(raw)
         
         if state.get("debug", False):
             print(f"\033[31mclassifier: classified as {parsed.category} with the following justification: \"{parsed.justification}\"\033[0m")
         
-        return {"messages": [raw], "next": parsed.category}
+        return {"messages": messages, "next": parsed.category}
     
     return closure
 
