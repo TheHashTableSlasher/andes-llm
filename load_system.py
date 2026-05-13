@@ -1,3 +1,4 @@
+from langchain.messages import SystemMessage
 from langchain.tools import tool, ToolRuntime
 from langgraph.types import Command
 
@@ -46,3 +47,13 @@ def load_local_case(path: str, runtime: ToolRuntime) -> Command:
         )]
    
     return Command(update=update)
+
+def load_system(model):
+    system_prompt = "You are a helpful power systems assistant that has access to tools for loading and retrieving the properties of a power systems test case."
+
+    #messages = [
+    #    SystemMessage(content=system_prompt),
+    #    state["messages"][-1]
+    #]
+    
+    return lambda state: state # TODO

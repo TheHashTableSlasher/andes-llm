@@ -1,10 +1,13 @@
 import sys
 
+from langchain.tools import tool
 from langchain_community.document_loaders import PyPDFLoader
 from langchain_community.vectorstores import FAISS
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 
 import itertools
+
+__all__ = ["init_context", "retrieve_context"]
 
 def init_context(embedding):
     if init_context.vec_store is None:
@@ -21,7 +24,9 @@ def init_context(embedding):
             chunks = splitter.split_documents(docs)
 
             init_context.vec_store = FAISS.from_documents(chunks, embedding)
-           init_context.vec_store.save_local("andes_doc_embeddings")
+            init_context.vec_store.save_local("andes_doc_embeddings")
+            
+init_context.vec_store = None
 
 @tool(response_format="content_and_artifact")
 def retrieve_context(query: str):

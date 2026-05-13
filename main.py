@@ -3,24 +3,32 @@ import os
 import readline
 
 from andes.system import System
-from langchain_core.messages import HumanMessage
-from langchain_ollama import ChatOllama
+from langchain_ollama import ChatOllama, OllamaEmbeddings
 from langgraph.graph import StateGraph, MessagesState, START, END
 from langgraph.graph.message import add_messages
+from langchain.messages import HumanMessage
 from langgraph.prebuilt import ToolNode
-from typing_extensions import Annotated
+from typing_extensions import Annotated, List
 
-from .classifier import classifier
+from classifier import *
+from rag import *
+from load_system import *
 
 class State(MessagesState):
     messages: Annotated[list, add_messages]
     steps: List[str]
     next: str
+    debug: bool
     ss: System
     
 def planner(state):
     # TODO: use this step to split into compounds, conditionals, etc.
-    state["steps"] = [state["messages"][-1].content]
+    return {"steps": [None, state["messages"][-1].content]}
+    
+def next_step(state):
+    return {"steps": state["steps"][1:]}
+    
+noop = lambda state: {}
 
 if __name__ == "__main__":
     model = ChatOllama(
@@ -28,23 +36,32 @@ if __name__ == "__main__":
         temperature=0,
     )
     
-    graph = StateGraph(State)
-    tools = []
+    embedding = OllamaEmbeddings(model="llama3.1:8b")
     
-    graph.add_node("planner", lambda state: state)
-    graph.add_node("next_step", lambda state: state)
+    init_context(embedding)
+    
+    graph = StateGraph(State)
+    tools = [
+        retrieve_context,
+        load_test_case,
+        load_local_case
+    ]
+    
+    graph.add_node("planner", planner)
+    graph.add_node("next_step", next_step)
     graph.add_node("classifier", classifier(model))
     
-    graph.add_node("question_general", lambda state: state) # TODO
-    graph.add_node("question_param", lambda state: state) # TODO
+    graph.add_node("question_general", noop) # TODO
+    graph.add_node("question_param", noop) # TODO
     graph.add_node("load_system", load_system(model))
-    graph.add_node("run_pflow", lambda state: state) # TODO
-    graph.add_node("run_tds", lambda state: state) # TODO
-    graph.add_node("run_eig", lambda state: state) # TODO
-    graph.add_node("interpreter", lambda state: state) # TODO
+    graph.add_node("run_pflow", noop) # TODO
+    graph.add_node("run_tds", noop) # TODO
+    graph.add_node("run_eig", noop) # TODO
+    graph.add_node("codegen", noop) # TODO
     
     graph.add_node("tools", ToolNode(tools))
-    graph.add_node("summary", lambda state: state)
+    graph.add_node("interpreter", noop) # TODO
+    graph.add_node("summary", noop) # TODO
     
     graph.add_edge(START, "planner")
     graph.add_edge("planner", "next_step")
@@ -57,9 +74,10 @@ if __name__ == "__main__":
     graph.add_edge("run_pflow", "tools")
     graph.add_edge("run_tds", "tools")
     graph.add_edge("run_eig", "tools")
-    graph.add_edge("interpreter", "tools")
+    graph.add_edge("codegen", "tools")
     
-    graph.add_edge("tools", "next_step")
+    graph.add_conditional_edges("tools", lambda state: state["next"] == "codegen", {True: "interpreter", False: "next_step"})
+    graph.add_edge("interpreter", "next_step")
     
     graph.add_edge("summary", END)
     
@@ -67,11 +85,11 @@ if __name__ == "__main__":
     
     state = State()
     state["messages"] = []
+    state["debug"] = True
     
     print("ANDES LLM v0.0.?")
-    print("See LICENSE for license info")
-
     histfile = ".llm_history"
+    
     if os.path.exists(histfile):
         readline.read_history_file(histfile)
         
@@ -81,6 +99,8 @@ if __name__ == "__main__":
                 content = input("> ")
                 state["messages"].append(HumanMessage(content=content))
                 state = graph.invoke(state)
+                if state["debug"]:
+                    print(f"\033[31mcurrent state: {state}\033[0m")
             except KeyboardInterrupt:
                 print()
                 break
