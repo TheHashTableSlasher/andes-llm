@@ -13,6 +13,7 @@ from typing_extensions import Annotated, List
 from classifier import *
 from rag import *
 from load_system import *
+from summary import *
 
 class State(MessagesState):
     messages: Annotated[list, add_messages]
@@ -61,7 +62,7 @@ if __name__ == "__main__":
     
     graph.add_node("tools", ToolNode(tools))
     graph.add_node("interpreter", noop) # TODO
-    graph.add_node("summary", noop) # TODO
+    graph.add_node("summary", summary(model))
     
     graph.add_edge(START, "planner")
     graph.add_edge("planner", "next_step")
@@ -101,7 +102,7 @@ if __name__ == "__main__":
                 state = graph.invoke(state)
                 if state["debug"]:
                     print(f"\033[31mcurrent state: {state}\033[0m")
-            except KeyboardInterrupt:
+            except EOFError, KeyboardInterrupt:
                 print()
                 break
     finally:
