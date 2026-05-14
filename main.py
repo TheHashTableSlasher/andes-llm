@@ -14,6 +14,7 @@ from classifier import *
 from rag import *
 from load_system import *
 from summary import *
+from question_param import *
 
 class State(MessagesState):
     messages: Annotated[list, add_messages]
@@ -43,6 +44,7 @@ if __name__ == "__main__":
     
     graph = StateGraph(State)
     tools = [
+        get_model,
         retrieve_context,
         load_test_case,
         load_local_case
@@ -53,7 +55,7 @@ if __name__ == "__main__":
     graph.add_node("classifier", classifier(model))
     
     graph.add_node("question_general", noop) # TODO
-    graph.add_node("question_param", noop) # TODO
+    graph.add_node("question_param", question_param(model)) # TODO
     graph.add_node("load_system", load_system(model))
     graph.add_node("run_pflow", noop) # TODO
     graph.add_node("run_tds", noop) # TODO
@@ -102,7 +104,7 @@ if __name__ == "__main__":
                 state = graph.invoke(state)
                 if state["debug"]:
                     print(f"\033[31mcurrent state: {state}\033[0m")
-            except EOFError, KeyboardInterrupt:
+            except (EOFError, KeyboardInterrupt):
                 print()
                 break
     finally:
