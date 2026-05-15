@@ -13,7 +13,7 @@ You are an assistant for ANDES, a library for power system modeling and simulati
         while not isinstance(state["messages"][end], HumanMessage):
             end -= 1
     
-        messages = [SystemMessage(content=system_message)] + state["messages"][end:]
+        messages = state["messages"][end:]
         
         message = model.invoke(messages)
         
