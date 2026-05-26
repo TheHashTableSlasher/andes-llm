@@ -1,9 +1,11 @@
+import configparser
 import operator
 import os
 import readline
 
 from andes.system import System
 from langchain_ollama import ChatOllama, OllamaEmbeddings
+from langchain_openai import ChatOpenAI, OpenAIEmbeddings
 from langgraph.graph import StateGraph, MessagesState, START, END
 from langgraph.graph.message import add_messages
 from langchain.messages import HumanMessage
@@ -33,12 +35,52 @@ def next_step(state):
 noop = lambda state: {}
 
 if __name__ == "__main__":
-    model = ChatOllama(
-        model="llama3.1:8b",
-        temperature=0,
-    )
+    model = None
+    embedding = None
     
-    embedding = OllamaEmbeddings(model="llama3.1:8b")
+    cfg = configparser.ConfigParser()
+    cfg.read("config.ini")
+    
+    for name, section in cfg.items():
+        try:
+            if section.get("backend") == "ollama":
+                if "model" in section:
+                    model = ChatOllama(
+                        model = section["model"].strip(),
+                        validate_model_on_init = True,
+                        base_url = section.get("base_url", "http://localhost:11434").strip(),
+                        temperature = float(section.get("temperature", 0.0))
+                    )
+                    
+                if "embedding_model" in section:
+                    embedding = OllamaEmbeddings(
+                        model = section["embedding_model"].strip(),
+                        validate_model_on_init = True,
+                        base_url = section.get("base_url", "http://localhost:11434").strip(),
+                        temperature = float(section.get("temperature", 0.0))
+                    )
+                    
+            elif section.get("backend") == "openai" and "api_key" in section:
+                model = ChatOpenAI(
+                    model = section.get("model", "gpt-5-mini-2025-08-07").strip(),
+                    api_key = section["api_key"].strip(),
+                    validate_model_on_init = True,
+                    base_url = section.get("base_url", "https://api.openai.com/v1").strip(),
+                    temperature = float(section.get("temperature", 0.0))
+                )
+                
+                embedding = OpenAIEmbeddings(
+                    model = section.get("model", "text-embedding-3-small").strip(),
+                    api_key = section["api_key"].strip(),
+                    validate_model_on_init = True,
+                    base_url = section.get("base_url", "https://api.openai.com/v1").strip(),
+                    temperature = float(section.get("temperature", 0.0))
+                )
+        except Exception:
+            pass # Intentional fallthrough
+            
+    if model is None or embedding is None:
+        raise RuntimeError("Model/embedding could not be loaded from config")
     
     init_context(embedding)
     
