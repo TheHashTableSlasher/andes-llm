@@ -42,40 +42,43 @@ if __name__ == "__main__":
     cfg.read("config.ini")
     
     for name, section in cfg.items():
+        temperature = section.get("temperature")
+        if temperature is not None:
+            temperature = float(temperature)
+            
         try:
             if section.get("backend") == "ollama":
-                if "model" in section:
+                if "model" in section and model is None:
                     model = ChatOllama(
                         model = section["model"].strip(),
                         validate_model_on_init = True,
                         base_url = section.get("base_url", "http://localhost:11434").strip(),
-                        temperature = float(section.get("temperature", 0.0))
+                        temperature = temperature
                     )
                     
-                if "embedding_model" in section:
+                if "embedding_model" in section and embedding is None:
                     embedding = OllamaEmbeddings(
                         model = section["embedding_model"].strip(),
                         validate_model_on_init = True,
                         base_url = section.get("base_url", "http://localhost:11434").strip(),
-                        temperature = float(section.get("temperature", 0.0))
+                        temperature = temperature
                     )
                     
             elif section.get("backend") == "openai" and "api_key" in section:
-                model = ChatOpenAI(
-                    model = section.get("model", "gpt-5-mini-2025-08-07").strip(),
-                    api_key = section["api_key"].strip(),
-                    validate_model_on_init = True,
-                    base_url = section.get("base_url", "https://api.openai.com/v1").strip(),
-                    temperature = float(section.get("temperature", 0.0))
-                )
+                if model is None:
+                    model = ChatOpenAI(
+                        model = section.get("model", "gpt-5-mini-2025-08-07").strip(),
+                        api_key = section["api_key"].strip(),
+                        base_url = section.get("base_url", "https://api.openai.com/v1").strip(),
+                        temperature = temperature
+                    )
                 
-                embedding = OpenAIEmbeddings(
-                    model = section.get("model", "text-embedding-3-small").strip(),
-                    api_key = section["api_key"].strip(),
-                    validate_model_on_init = True,
-                    base_url = section.get("base_url", "https://api.openai.com/v1").strip(),
-                    temperature = float(section.get("temperature", 0.0))
-                )
+                if embedding is None:
+                    embedding = OpenAIEmbeddings(
+                        model = section.get("model", "text-embedding-3-small").strip(),
+                        api_key = section["api_key"].strip(),
+                        base_url = section.get("base_url", "https://api.openai.com/v1").strip()
+                    )
         except Exception:
             pass # Intentional fallthrough
             
