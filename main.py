@@ -17,6 +17,7 @@ from rag import *
 from load_system import *
 from summary import *
 from question_param import *
+from interpreter import *
 
 class State(MessagesState):
     messages: Annotated[list, add_messages]
@@ -105,10 +106,10 @@ if __name__ == "__main__":
     graph.add_node("run_pflow", noop) # TODO
     graph.add_node("run_tds", noop) # TODO
     graph.add_node("run_eig", noop) # TODO
-    graph.add_node("codegen", noop) # TODO
+    graph.add_node("codegen", codegen(model))
     
     graph.add_node("tools", ToolNode(tools))
-    graph.add_node("interpreter", noop) # TODO
+    graph.add_node("interpreter", interpreter(model))
     graph.add_node("summary", summary(model))
     
     graph.add_edge(START, "planner")
