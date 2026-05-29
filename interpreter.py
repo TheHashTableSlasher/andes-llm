@@ -1,6 +1,8 @@
 import multiprocessing as mp
 import os
-import tempfile
+import subprocess
+import sys
+import warnings
 from traceback import format_exception
 
 import andes
@@ -32,25 +34,10 @@ You are an assistant for ANDES, a library for power system modeling and simulati
         return {"messages": messages}
     
     return closure
-    
-def interpreter_child(dilled_ss, code, q):
-    with tempfile.TemporaryDirectory() as tmproot:
-        os.chroot(tmproot)
-        
-        variables = {
-            "andes": andes,
-            "np": np,
-            "ss": dill.loads(dilled_ss)
-        }
-        
-        try:
-            exec(code, variables)
-        except Exception as err:
-            q.send(err)
-        else:
-            q.send(dill.dumps(variables["ss"]))
 
 def interpreter(model):
+    warnings.warn(f"You should add the following line to your sudoers:\nALL\tALL=(nobody) NOPASSWD: {sys.executable}")
+
     def closure(state):
         k = -1
         while not isinstance(state["messages"][k], SystemMessage):
@@ -61,23 +48,35 @@ def interpreter(model):
         
         if state.get("debug", False):
             print(f"\033[31minterpreter: will attempt to run the following Python code:\n{code}\033[0m")
-
-        q1, q2 = mp.Pipe(False)
-        proc = mp.Process(target=interpreter_child, args=(dill.dumps(state["ss"]), code, q2))
-        proc.start()
-        
-        new_ss = q1.recv()
-        
-        proc.join()
+            
+        with subprocess.Popen(["sudo", "-u", "nobody", sys.executable, __file__], stdin=subprocess.PIPE, stdout=subprocess.PIPE, env={"PYTHONPATH": ":".join(sys.path)}) as proc:
+            new_ss = dill.loads(proc.communicate(dill.dumps((state["ss"], code)))[0])
         
         update = {"messages": messages}
         
         if isinstance(new_ss, Exception):
             mesages.append(SystemMessage(content="Your code failed to run.\n" + "".join(format_exception(new_ss))))
         else:
-            mesages.append(SystemMessage(content="Your code ran successfully, ss has been updated."))
-            update["ss"] = dill.loads(new_ss)
+            mesages.append(SystemMessage(content="Your p = subprocess.Popen(args)code ran successfully, ss has been updated."))
+            update["ss"] = new_ss
             
         return update
         
     return closure
+    
+if __name__ == "__main__":
+    # Re-entry point of interpreter child process - uid should be nobody, so safe to run LLM code
+    ss, code = dill.load(sys.stdin)
+    
+    variables = {
+        "andes": andes,
+        "np": np,
+        "ss": ss
+    }
+    
+    try:
+        exec(code, variables)
+    except Exception as err:
+        dill.dump(err, sys.stdout)
+    else:
+        dill.dump(variables["ss"], sys.stdout)
