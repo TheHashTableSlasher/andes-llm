@@ -36,7 +36,7 @@ You are an assistant for ANDES, a library for power system modeling and simulati
     return closure
 
 def interpreter(model):
-    warnings.warn(f"You should add the following line to your sudoers:\n\nALL\tALL=(nobody) NOPASSWD: {sys.executable}\nDefaults!{sys.executable} env_keep += \"PYTHONPATH\"\n")
+    warnings.warn(f"You should add the following line to your sudoers:\n\nALL\tALL=(nobody) NOPASSWD: {sys.executable}\nDefaults!{sys.executable}\tenv_keep += \"PYTHONPATH\"\n")
 
     def closure(state):
         k = -1
@@ -50,7 +50,10 @@ def interpreter(model):
             print(f"\033[31minterpreter: will attempt to run the following Python code:\n{code}\033[0m")
             
         with subprocess.Popen(["sudo", "-u", "nobody", sys.executable, __file__], stdin=subprocess.PIPE, stdout=subprocess.PIPE, env={"PYTHONPATH": ":".join(sys.path)}) as proc:
-            new_ss = dill.loads(proc.communicate(dill.dumps((state["ss"], code)))[0])
+            out, err = proc.communicate(dill.dumps((state["ss"], code)))
+            if state.get("debug", False):
+                print(f"\033[31minterpreter: got the following back from the process:\n{out}\033[0m")
+            new_ss = dill.loads(out)
         
         update = {"messages": messages}
         
@@ -65,8 +68,10 @@ def interpreter(model):
     return closure
     
 if __name__ == "__main__":
+    print("GOT HERE", file=sys.stderr)
+    
     # Re-entry point of interpreter child process - uid should be nobody, so safe to run LLM code
-    ss, code = dill.load(sys.stdin)
+    ss, code = dill.load(sys.stdin.buffer)
     
     variables = {
         "andes": andes,
@@ -79,4 +84,4 @@ if __name__ == "__main__":
     except Exception as err:
         dill.dump(err, sys.stdout)
     else:
-        dill.dump(variables["ss"], sys.stdout)
+        dill.dump(variables["ss"], sys.stdout.buffer)
