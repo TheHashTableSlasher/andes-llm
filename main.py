@@ -66,7 +66,7 @@ if __name__ == "__main__":
                     )
                     
             elif section.get("backend") == "openai" and "api_key" in section:
-                if model is None:
+                if ("model" in section or "embedding_model" not in section) and model is None:
                     model = ChatOpenAI(
                         model = section.get("model", "gpt-5-mini-2025-08-07").strip(),
                         api_key = section["api_key"].strip(),
@@ -74,7 +74,7 @@ if __name__ == "__main__":
                         temperature = temperature
                     )
                 
-                if embedding is None:
+                if ("embedding_model" in section or "model" not in section) and embedding is None:
                     embedding = OpenAIEmbeddings(
                         model = section.get("model", "text-embedding-3-small").strip(),
                         api_key = section["api_key"].strip(),
