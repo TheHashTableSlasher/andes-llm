@@ -36,7 +36,7 @@ You are an assistant for ANDES, a library for power system modeling and simulati
     return closure
 
 def interpreter(model):
-    warnings.warn(f"You should add the following line to your sudoers:\nALL\tALL=(nobody) NOPASSWD: {sys.executable}")
+    warnings.warn(f"You should add the following line to your sudoers:\n\nALL\tALL=(nobody) NOPASSWD: {sys.executable}\nDefaults!{sys.executable} env_keep += \"PYTHONPATH\"\n")
 
     def closure(state):
         k = -1
