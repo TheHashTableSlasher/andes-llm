@@ -1,6 +1,15 @@
+import asyncio
+
 from langchain.messages import HumanMessage, SystemMessage
 
 __all__ = ["summary"]
+
+async def summary_printer(stream):
+    async for message in stream:
+        if message["event"] == 'on_chat_model_stream':
+            print(message["data"]["chunk"].content, end="", flush=True)
+        elif message["event"] == 'on_chat_model_end':
+            return message["data"]["output"]
 
 def summary(model):
     system_message = """
@@ -15,9 +24,7 @@ You are an assistant for ANDES, a library for power system modeling and simulati
     
         messages = state["messages"][end:]
         
-        message = model.invoke(messages)
-        
-        print(message.content)
+        message = asyncio.run(summary_printer(model.astream_events(messages)))
         
         return {"messages": [message]}
     
