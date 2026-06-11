@@ -79,9 +79,11 @@ if __name__ == "__main__":
         "ss": ss
     }
     
+    print(variables)
+    
     try:
         exec(code, variables)
     except Exception as err:
-        dill.dump(err, sys.stdout)
+        dill.dump(err, sys.stdout.buffer)
     else:
         dill.dump(variables["ss"], sys.stdout.buffer)

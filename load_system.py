@@ -50,21 +50,36 @@ def load_local_case(path: str, runtime: ToolRuntime) -> Command:
     return Command(update=update)
 
 def load_system(model):
-    system_prompt = "You are a helpful power systems assistant that has access to tools for loading and retrieving the properties of a power systems test case."
+    system_message = """
+<system_prompt>
+    <role>
+        Use the <tool>load_test_case</tool> and <tool>load_local_case</tool> tools to load the ANDES system that the user has specified.
+    </role>
+    <constraints>
+        <constraint>Only make a single tool call.</constraint>
+        <constraint>Do not provide any additional output, aside from the tool call.</constraint>
+        <constraint>If a user includes a path in the prompt, pass that path verbatim. Do not corrupt that path in any way.</constraint>
+    </constraints>
+</system_prompt>
+"""
     
     model = model.bind_tools([load_local_case, load_test_case])
 
     def closure(state):
-        messages = [
-            SystemMessage(content=system_prompt),
-            HumanMessage(content=state["steps"][0])
-        ]
+        messages = [SystemMessage(content=system_message)]
+        end = -1
         
-        messages.append(model.invoke(messages))
+        while not isinstance(state["messages"][end], HumanMessage):
+            end -= 1
+    
+        messages.extend(state["messages"][(end + 1):])
+        messages.append(HumanMessage(content=state["steps"][0]))
+        
+        message = model.invoke(messages)
         
         if state.get("debug", False):
-            print(f"\033[31mload_system: will attempt the following tool calls: \"{messages[-1].tool_calls}\"\033[0m")
+            print(f"\033[31mload_system: will attempt the following tool calls: \"{message.tool_calls}\"\033[0m")
         
-        return {"messages": messages}
+        return {"messages": [message]}
     
     return closure
