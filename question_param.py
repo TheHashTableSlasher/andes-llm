@@ -27,21 +27,31 @@ def get_model(modelname: str, state: Annotated[dict, InjectedState]) -> str:
     return param_info_str + "Current values\n--------------\n\n\n" + param_data_str
 
 def question_param(model):
-    system_prompt = "You are a helpful power systems assistant that has access to tools for looking up information about a specific ANDES model."
+    system_message = """
+<system_prompt>
+    <role>
+        Use the <tool>get_model</tool> tool to look up information about a specific ANDES model. You may call this tool as many times as you like.
+    </role>
+</system_prompt>
+"""
     
     model = model.bind_tools([get_model])
 
     def closure(state):
-        messages = [
-            SystemMessage(content=system_prompt),
-            HumanMessage(content=state["steps"][0])
-        ]
+        messages = [SystemMessage(content=system_message)]
+        end = -1
         
-        messages.append(model.invoke(messages))
+        while not isinstance(state["messages"][end], HumanMessage):
+            end -= 1
+    
+        messages.extend(state["messages"][(end + 1):])
+        messages.append(HumanMessage(content=state["steps"][0]))
+        
+        message = model.invoke(messages)
         
         if state.get("debug", False):
-            print(f"\033[31mquestion_param: will attempt the following tool calls: \"{messages[-1].tool_calls}\"\033[0m")
+            print(f"\033[31mquestion_param: will attempt the following tool calls: \"{message.tool_calls}\"\033[0m")
         
-        return {"messages": messages}
+        return {"messages": [message]}
     
     return closure

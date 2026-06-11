@@ -19,6 +19,7 @@ def summary(model):
         Respond to the user's message, reporting on any information you retrieved and updates you made.
     </role>
     <constraints>
+        <constraint>Output human-readable information -- do not hallucinate any XML or structured data.</constraint>
         <constraint>Use the chat history only to provide information on the actions you made.</constraint>
     </constraints>
 </system_prompt>
