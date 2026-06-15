@@ -1,5 +1,6 @@
 import multiprocessing as mp
 import os
+from io import BytesIO
 import subprocess
 import sys
 import warnings
@@ -9,10 +10,51 @@ import andes
 import dill
 import numpy as np
 from langchain.messages import SystemMessage, HumanMessage
+import docker
 
 from rag import retrieve_context
 
 __all__ = ["codegen", "interpreter"]
+
+DOCKERFILE = """
+FROM python:{python_version}
+
+RUN python3 -m pip install --break-system-packages dill numpy git+https://github.com/CURENT/andes@v{andes_version}
+RUN echo "{client_code}" > /main.py
+"""
+
+CLIENT_CODE = """
+import socket
+import sys
+
+import andes
+import dill
+import numpy as np
+
+with socket.socket(socket.AF_INET, socket.SOCK_STREAM, socket.IPPROTO_TCP) as sock:
+    sock.connect(("host.docker.internal", int(sys.argv[1])))
+    
+    data = bytearray()
+    
+    while True:
+        chunk = sock.recv(0x10000)
+        if not chunk:
+            break
+        data.extend(chunk)
+        
+    ss, code = dill.loads(data)
+    global_variables = {"andes": andes, "np": np, "ss": ss}
+    
+    try:
+        exec(code, global_variables)
+    except Exception as err:
+        result = err
+    else:
+        result = global_variables["ss"]
+   
+    sock.sendall(dill.dumps(result))
+    sock.shutdown(socket.SHUT_WR)
+"""
 
 def codegen(model):
     system_message = """
@@ -36,7 +78,19 @@ You are an assistant for ANDES, a library for power system modeling and simulati
     return closure
 
 def interpreter(model):
-    warnings.warn(f"You should add the following line to your sudoers:\n\nALL\tALL=(nobody) NOPASSWD: {sys.executable}\nDefaults!{sys.executable}\tenv_keep += \"PYTHONPATH\"\n")
+    image = "andes-llm:{}".format(".".join(sys.version.split('.')[:2]))
+    client = docker.from_env()
+    
+    try:
+        client.images.get(image)
+    except docker.errors.ImageNotFound:
+        print("Creating docker image, this could take a while...", file=sys.stderr)
+        
+        client.images.build(tag=image, fileobj=BytesIO(DOCKERFILE.format(
+            python_version = ".".join(sys.version.split('.')[:2]),
+            andes_version = andes.__version__ if not andes.__version__.endswith("+unknown") else "2.0.0",
+            client_code = CLIENT_CODE.replace("\n", "\\n")
+        ).encode()))
 
     def closure(state):
         k = -1
@@ -49,13 +103,35 @@ def interpreter(model):
         if state.get("debug", False):
             print(f"\033[31minterpreter: will attempt to run the following Python code:\n{code}\033[0m")
             
-        with subprocess.Popen(["sudo", "-u", "nobody", sys.executable, __file__], stdin=subprocess.PIPE, stdout=subprocess.PIPE, env={"PYTHONPATH": ":".join(sys.path)}) as proc:
-            out, err = proc.communicate(dill.dumps((state["ss"], code)))
-            if state.get("debug", False):
-                print(f"\033[31minterpreter: got the following back from the process:\n{out}\033[0m")
-            new_ss = dill.loads(out)
+        with socket.socket(socket.AF_INET, socket.SOCK_STREAM, socket.IPPROTO_TCP) as sock:
+            sock.bind(("", 0))
+            sock.listen()
+            
+            port = sock.getsockname()[1]
         
-        update = {"messages": messages}
+            client.containers.run(
+                image, f"python3 /main.py {port}",
+                extra_hosts={"host.docker.internal": "host-gateway"},
+                auto_remove=True,
+                detach=True
+            )
+            
+            sock2 = sock.accept()[0]
+            
+            sock2.sendall(dill.dumps((state["ss"], code)))
+            sock2.shutdown(socket.SHUT_WR)
+            
+            data = bytearray()
+
+            while True:
+                chunk = sock.recv(0x10000)
+                if not chunk:
+                    break
+                data.extend(chunk)
+            
+            sock2.close()
+            
+        new_ss = dill.loads(data)
         
         if isinstance(new_ss, Exception):
             mesages.append(SystemMessage(content="Your code failed to run.\n" + "".join(format_exception(new_ss))))
@@ -63,27 +139,6 @@ def interpreter(model):
             mesages.append(SystemMessage(content="Your p = subprocess.Popen(args)code ran successfully, ss has been updated."))
             update["ss"] = new_ss
             
-        return update
+        return {"messages": messages}
         
     return closure
-    
-if __name__ == "__main__":
-    print("GOT HERE", file=sys.stderr)
-    
-    # Re-entry point of interpreter child process - uid should be nobody, so safe to run LLM code
-    ss, code = dill.load(sys.stdin.buffer)
-    
-    variables = {
-        "andes": andes,
-        "np": np,
-        "ss": ss
-    }
-    
-    print(variables)
-    
-    try:
-        exec(code, variables)
-    except Exception as err:
-        dill.dump(err, sys.stdout.buffer)
-    else:
-        dill.dump(variables["ss"], sys.stdout.buffer)

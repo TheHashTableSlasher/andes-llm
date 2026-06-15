@@ -32,8 +32,6 @@ def planner(state):
     
 def next_step(state):
     return {"steps": state["steps"][1:]}
-    
-noop = lambda state: {}
 
 if __name__ == "__main__":
     model = None
@@ -95,6 +93,8 @@ if __name__ == "__main__":
         load_test_case,
         load_local_case
     ]
+    
+    noop = lambda state: {}
     
     graph.add_node("planner", planner)
     graph.add_node("next_step", next_step)
