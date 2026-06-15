@@ -16,11 +16,10 @@ def summary(model):
     system_message = """
 <system_prompt>
     <role>
-        Respond to the user's message, reporting on any information you retrieved and updates you made.
+        Respond to the user's message, reporting on any information you retrieved and updates you made. Use the chat history to provide a response.
     </role>
     <constraints>
         <constraint>Output human-readable information -- do not hallucinate any XML or structured data.</constraint>
-        <constraint>Use the chat history only to provide information on the actions you made.</constraint>
     </constraints>
 </system_prompt>
 """

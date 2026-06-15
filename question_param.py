@@ -30,12 +30,12 @@ def question_param(model):
     system_message = """
 <system_prompt>
     <role>
-        Use the <tool>get_model</tool> tool to look up information about a specific ANDES model. You may call this tool as many times as you like.
+        Use the <tool>get_model</tool> tool to look up information about a specific ANDES model. You may call this tool multiple times.
     </role>
 </system_prompt>
 """
     
-    model = model.bind_tools([get_model])
+    model = model.bind_tools([get_model], parallel_tool_calls=True)
 
     def closure(state):
         messages = [SystemMessage(content=system_message)]
