@@ -19,10 +19,11 @@ def summary(model):
         Respond to the user's message, reporting on any information you retrieved and updates you made. Use the chat history to provide a response.
     </role>
     <constraints>
-        <constraint>Output human-readable information -- do not hallucinate any XML or structured data.</constraint>
+        <constraint>Output human-readable sentences, not XML or JSON.</constraint>
     </constraints>
 </system_prompt>
 """
+    loop = asyncio.get_event_loop()
 
     def closure(state):
         messages = [SystemMessage(content=system_message)]
@@ -34,7 +35,7 @@ def summary(model):
     
         messages.extend(state["messages"][end:])
         
-        message = asyncio.run(summary_printer(model.astream_events(messages)))
+        message = loop.run_until_complete(summary_printer(model.astream_events(messages)))
         
         return {"messages": [message]}
     

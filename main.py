@@ -48,6 +48,7 @@ if __name__ == "__main__":
         try:
             if section.get("backend") == "ollama":
                 if "model" in section and model is None:
+                    print("Opening ollama model \"{}\"".format(section["model"].strip()))
                     model = ChatOllama(
                         model = section["model"].strip(),
                         validate_model_on_init = True,
@@ -56,6 +57,7 @@ if __name__ == "__main__":
                     )
                     
                 if "embedding_model" in section and embedding is None:
+                    print("Opening ollama embedding model \"{}\"".format(section["embedding_model"].strip()))
                     embedding = OllamaEmbeddings(
                         model = section["embedding_model"].strip(),
                         validate_model_on_init = True,
@@ -65,6 +67,7 @@ if __name__ == "__main__":
                     
             elif section.get("backend") == "openai" and "api_key" in section:
                 if ("model" in section or "embedding_model" not in section) and model is None:
+                    print("Opening OpenAI model \"{}\"".format(section["model"].strip()))
                     model = ChatOpenAI(
                         model = section.get("model", "gpt-5-mini-2025-08-07").strip(),
                         api_key = section["api_key"].strip(),
@@ -73,6 +76,7 @@ if __name__ == "__main__":
                     )
                 
                 if ("embedding_model" in section or "model" not in section) and embedding is None:
+                    print("Opening OpenAI embedding model \"{}\"".format(section["embedding_model"].strip()))
                     embedding = OpenAIEmbeddings(
                         model = section.get("model", "text-embedding-3-small").strip(),
                         api_key = section["api_key"].strip(),

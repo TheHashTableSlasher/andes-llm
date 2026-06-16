@@ -35,7 +35,7 @@ def question_param(model):
 </system_prompt>
 """
     
-    model = model.bind_tools([get_model], parallel_tool_calls=True)
+    model = model.bind_tools([get_model])
 
     def closure(state):
         messages = [SystemMessage(content=system_message)]
