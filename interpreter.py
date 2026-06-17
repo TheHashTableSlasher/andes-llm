@@ -38,28 +38,20 @@ andes.system.import_pycode("/pycode")
 
 with socket.socket(socket.AF_INET, socket.SOCK_STREAM, socket.IPPROTO_TCP) as sock:
     sock.connect(("host.docker.internal", int(sys.argv[1])))
+    f = sock.makefile('rwb', buffering=0)
     
-    data = bytearray()
-    
-    while True:
-        chunk = sock.recv(0x10000)
-        if not chunk:
-            break
-        data.extend(chunk)
-    
-    ss, code = dill.loads(data)
+    ss, code = dill.load(f)
     global_variables = {"andes": andes, "np": np, "pd": pd, "ss": ss}
         
     try:
         exec(code, global_variables)
     except Exception as err:
-        print(err)
         result = err
     else:
         result = global_variables["ss"]
    
-    sock.sendall(dill.dumps(result))
-    sock.shutdown(socket.SHUT_WR)
+    dill.dump(result, f)
+    f.flush()
 '''
 
 def codegen(model):
@@ -121,40 +113,28 @@ def interpreter(model):
             
             port = sock.getsockname()[1]
         
-            #client.containers.run(
-            #    image, f"python3 /main.py {port}",
-            #    extra_hosts={"host.docker.internal": "host-gateway"},
-            #    volumes={pycode_path: {'bind': '/pycode', 'mode': 'ro'}},
-            #    auto_remove=True,
-            #    detach=True
-            #)
+            client.containers.run(
+                image, f"python3 /main.py {port}",
+                extra_hosts={"host.docker.internal": "host-gateway"},
+                volumes={pycode_path: {'bind': '/pycode', 'mode': 'ro'}},
+                auto_remove=True,
+                detach=True
+            )
             
-            print("1 ({})".format(port))
             sock2 = sock.accept()[0]
+            f = sock2.makefile('rwb', buffering=0)
             
-            print("2")
-            sock2.sendall(dill.dumps((state["ss"], code)))
-            sock2.shutdown(socket.SHUT_WR)
-            
-            print("3")
-            data = bytearray()
-
-            while True:
-                chunk = sock.recv(0x10000)
-                if not chunk:
-                    break
-                data.extend(chunk)
-            print("4")
+            dill.dump((state["ss"], code), f)
+            new_ss = dill.load(f)
             
             sock2.close()
             
-        new_ss = dill.loads(data)
         
         if isinstance(new_ss, Exception):
-            mesages.append(SystemMessage(content="Your code failed to run.\n" + "".join(format_exception(new_ss))))
+            messages.append(SystemMessage(content="Your code failed to run.\n" + "".join(format_exception(new_ss))))
             raise new_ss
         else:
-            mesages.append(SystemMessage(content="Your p = subprocess.Popen(args)code ran successfully, ss has been updated."))
+            messages.append(SystemMessage(content="Your p = subprocess.Popen(args)code ran successfully, ss has been updated."))
             update["ss"] = new_ss
             
         return {"messages": messages}
